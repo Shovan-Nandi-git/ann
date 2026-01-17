@@ -1,3 +1,4 @@
+
 # Customer Churn Prediction using ANN
 
 This project predicts whether a customer is likely to **churn (leave the bank)** using an **Artificial Neural Network (ANN)**.  
@@ -21,5 +22,5 @@ This project uses historical customer data to predict churn probability based on
 
 ---
 
-## 📂 Project Structure
+
 
