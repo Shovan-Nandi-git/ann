@@ -9,13 +9,8 @@ import tensorflow as tf
 model = tf.keras.models.load_model("model.h5")
 
 # -------------------------------------------------
-# MANUAL PREPROCESSOR (replaces sklearn pipeline)
+# Manual scaler values (from training data)
 # -------------------------------------------------
-
-# === IMPORTANT ===
-# These values MUST come from TRAINING DATA
-# Replace with your actual scaler values if different
-
 NUMERICAL_MEAN = {
     "CreditScore": 650,
     "Age": 39,
@@ -35,28 +30,13 @@ NUMERICAL_STD = {
 }
 
 def standard_scale(value, mean, std):
-    return (value - mean) / std if std != 0 else 0
+    return (value - mean) / std if std != 0 else 0.0
 
+# -------------------------------------------------
+# Preprocessing (MATCHES MOST ANN CHURN MODELS)
+# -------------------------------------------------
 def preprocess_input(df):
-    """
-    Final feature order (must match training):
-    [
-      CreditScore,
-      Age,
-      Tenure,
-      Balance,
-      NumOfProducts,
-      HasCrCard,
-      IsActiveMember,
-      EstimatedSalary,
-      Gender,
-      Geography_France,
-      Geography_Germany,
-      Geography_Spain
-    ]
-    """
-
-    # -------- Handle Missing Values (Imputer) --------
+    # Fill missing values
     df = df.fillna({
         "CreditScore": NUMERICAL_MEAN["CreditScore"],
         "Age": NUMERICAL_MEAN["Age"],
@@ -68,7 +48,7 @@ def preprocess_input(df):
         "Geography": "France"
     })
 
-    # -------- Scale Numerical Columns --------
+    # Scale numerical values
     credit_score = standard_scale(df["CreditScore"].iloc[0],
                                   NUMERICAL_MEAN["CreditScore"],
                                   NUMERICAL_STD["CreditScore"])
@@ -93,19 +73,18 @@ def preprocess_input(df):
                             NUMERICAL_MEAN["EstimatedSalary"],
                             NUMERICAL_STD["EstimatedSalary"])
 
-    # -------- Binary Encoding --------
+    # Binary encoding
     gender = 1 if df["Gender"].iloc[0] == "Male" else 0
     has_cr_card = int(df["HasCrCard"].iloc[0])
     is_active = int(df["IsActiveMember"].iloc[0])
 
-    # -------- One-Hot Encoding --------
+    # One-hot encoding (drop_first = True)
     geo = df["Geography"].iloc[0]
-    geo_france = 1 if geo == "France" else 0
     geo_germany = 1 if geo == "Germany" else 0
     geo_spain = 1 if geo == "Spain" else 0
 
-    # -------- Final Feature Vector --------
-    final_array = np.array([[
+    # Final feature vector (11 FEATURES)
+    final_array = np.array([[ 
         credit_score,
         age,
         tenure,
@@ -115,7 +94,6 @@ def preprocess_input(df):
         is_active,
         salary,
         gender,
-        geo_france,
         geo_germany,
         geo_spain
     ]], dtype=np.float32)
@@ -160,13 +138,21 @@ input_data = pd.DataFrame({
 # -------------------------------------------------
 if st.button("Predict Churn"):
     processed_input = preprocess_input(input_data)
-    prediction = model.predict(processed_input)
-    probability = float(prediction[0][0])
 
-    st.subheader(f"Churn Probability: {probability:.2f}")
-
-    if probability > 0.5:
-        st.error("The customer is likely to churn ❌")
+    # Safety check
+    if processed_input.shape[1] != model.input_shape[1]:
+        st.error(
+            f"Model expects {model.input_shape[1]} features, "
+            f"but received {processed_input.shape[1]}"
+        )
     else:
-        st.success("The customer is not likely to churn ✅")
+        prediction = model.predict(processed_input, verbose=0)
+        probability = float(prediction[0][0])
+
+        st.subheader(f"Churn Probability: {probability:.2f}")
+
+        if probability > 0.5:
+            st.error("The customer is likely to churn ❌")
+        else:
+            st.success("The customer is not likely to churn ✅")
 
