@@ -9,7 +9,7 @@ import tensorflow as tf
 model = tf.keras.models.load_model("model.h5")
 
 # -------------------------------------------------
-# Manual scaler values (from training data)
+# Manual scaler values (from training)
 # -------------------------------------------------
 NUMERICAL_MEAN = {
     "CreditScore": 650,
@@ -33,9 +33,10 @@ def standard_scale(value, mean, std):
     return (value - mean) / std if std != 0 else 0.0
 
 # -------------------------------------------------
-# Preprocessing (MATCHES MOST ANN CHURN MODELS)
+# Preprocessing (EXACT MATCH: 10 FEATURES)
 # -------------------------------------------------
 def preprocess_input(df):
+
     # Fill missing values
     df = df.fillna({
         "CreditScore": NUMERICAL_MEAN["CreditScore"],
@@ -78,12 +79,10 @@ def preprocess_input(df):
     has_cr_card = int(df["HasCrCard"].iloc[0])
     is_active = int(df["IsActiveMember"].iloc[0])
 
-    # One-hot encoding (drop_first = True)
-    geo = df["Geography"].iloc[0]
-    geo_germany = 1 if geo == "Germany" else 0
-    geo_spain = 1 if geo == "Spain" else 0
+    # Geography encoding (ONLY Germany)
+    geo_germany = 1 if df["Geography"].iloc[0] == "Germany" else 0
 
-    # Final feature vector (11 FEATURES)
+    # FINAL 10 FEATURES
     final_array = np.array([[ 
         credit_score,
         age,
@@ -94,8 +93,7 @@ def preprocess_input(df):
         is_active,
         salary,
         gender,
-        geo_germany,
-        geo_spain
+        geo_germany
     ]], dtype=np.float32)
 
     return final_array
@@ -138,21 +136,12 @@ input_data = pd.DataFrame({
 # -------------------------------------------------
 if st.button("Predict Churn"):
     processed_input = preprocess_input(input_data)
+    prediction = model.predict(processed_input, verbose=0)
+    probability = float(prediction[0][0])
 
-    # Safety check
-    if processed_input.shape[1] != model.input_shape[1]:
-        st.error(
-            f"Model expects {model.input_shape[1]} features, "
-            f"but received {processed_input.shape[1]}"
-        )
+    st.subheader(f"Churn Probability: {probability:.2f}")
+
+    if probability > 0.5:
+        st.error("The customer is likely to churn ❌")
     else:
-        prediction = model.predict(processed_input, verbose=0)
-        probability = float(prediction[0][0])
-
-        st.subheader(f"Churn Probability: {probability:.2f}")
-
-        if probability > 0.5:
-            st.error("The customer is likely to churn ❌")
-        else:
-            st.success("The customer is not likely to churn ✅")
-
+        st.success("The customer is not likely to churn ✅")
